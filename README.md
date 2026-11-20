@@ -1,136 +1,133 @@
-# nezuko-tiktok
+# nezuko-tiktok-search
 
-مكتبة Node.js بصيغة ESM للاتصال بـ [omkarcloud/tiktok-scraper](https://github.com/omkarcloud/tiktok-scraper)، مع واجهة سهلة للبحث عن فيديوهات TikTok، pagination، تفاصيل الفيديو، الاقتراحات، والبحث في المستخدمين والبثوث.
+مكتبة **Node.js** للبحث عن فيديوهات TikTok العامة وإرجاع روابط صفحات المشاهدة والبيانات الوصفية الأساسية. تعمل مباشرة داخل عملية Node.js ولا تتطلب تشغيل خادم REST أو فتح منفذ.
 
-> **مهم:** المشروع الأصلي خادم Python. هذه الحزمة عميل Node.js له وليست نسخة من كود الـ scraper داخله. شغّل خادم Python محلياً أو استخدم خادماً متوافقاً، ثم مرّر عنوانه في `baseUrl`.
+> **تنبيه:** هذه مكتبة غير رسمية، وليست تابعة إلى TikTok أو ByteDance أو معتمدة منهما. قد تتغير واجهات TikTok أو سياساته، لذلك لا يمكن ضمان استمرار البحث أو توفر كل الحقول.
+
+## المتطلبات
+
+- Node.js 22 أو أحدث.
+- اتصال بالإنترنت.
+- في معظم البيئات تستخدم المكتبة ناقل TLS المضمّن. إذا لم يعمل هذا الناقل على نظامك، يتوفر جسر احتياطي يحتاج إلى Python 3 وحزمة `curl_cffi`:
+
+```bash
+python3 -m pip install --user curl_cffi
+```
+
+يُشغّل الجسر تلقائياً عند الحاجة ثم يُغلق؛ لا تشغّل خادماً منفصلاً.
 
 ## التثبيت
 
-```bash
-npm install nezuko-tiktok
-```
-
-## تشغيل خادم المصدر
+بعد اعتماد هذا التحديث، يمكن تثبيت نسخة المستودع مباشرة: 
 
 ```bash
-git clone https://github.com/omkarcloud/tiktok-scraper
-cd tiktok-scraper
-python -m pip install -r requirements.txt
-python run.py
+npm install github:mzml-gg/nezuko-tiktok
 ```
 
-سيعمل افتراضياً على `http://127.0.0.1:8000`. إذا كان TikTok محجوباً من بيئتك، اضبط `TIKTOK_PROXY` حسب توثيق المشروع الأصلي.
+بعد توفر الإصدار المنشور على npm، استخدم:
 
-## البحث عن فيديوهات
+```bash
+npm install nezuko-tiktok-search
+```
+
+## بحث سريع
 
 ```js
-import { createClient } from 'nezuko-tiktok';
+const { searchVideos } = require('nezuko-tiktok-search');
 
-const tiktok = createClient({ baseUrl: 'http://127.0.0.1:8000' });
-const page = await tiktok.searchVideos('dance', {
-  country: 'us',
-  sort: 'relevance',
-  published: 'month'
-});
+async function main() {
+  const result = await searchVideos('cats', { count: 5 });
 
-console.log(page.video_count);
-for (const video of page.videos) {
-  console.log(video.id, video.link, video.description);
+  console.log(result.videos.map((video) => ({
+    title: video.title,
+    url: video.url,
+    username: video.author.username,
+    views: video.views,
+    likes: video.likes
+  })));
 }
+
+main().catch(console.error);
 ```
 
-ويمكن استدعاء الدوال مباشرة بدون إنشاء عميل:
+`searchVideos(keyword, options)` يقبل كلمة بحث غير فارغة. قيمة `count` اختيارية، وتكون بين 1 و50، والافتراضي 20. تُغلق المكتبة سياقها الداخلي بعد انتهاء الاستدعاء.
+
+## إعادة استخدام الجلسة والتنقل بين الصفحات
+
+لإجراء عدة طلبات متتابعة، أنشئ عميلاً واحداً وأغلقه في كتلة `finally`:
 
 ```js
-import { searchVideos, downloadTikTok } from 'nezuko-tiktok';
+const { createClient } = require('nezuko-tiktok-search');
 
-const results = await searchVideos('dance', {
-  clientOptions: { baseUrl: 'http://127.0.0.1:8000' },
-  country: 'us'
-});
+async function main() {
+  const client = createClient();
 
-const file = await downloadTikTok(results.videos[0].link, { quality: 'hd' });
-console.log(file.selected_download);
-```
+  try {
+    const firstPage = await client.searchVideos('football', { count: 10 });
+    console.log(firstPage.videos[0]?.url);
 
-## تحميل فيديو عبر API نيزوكو
-
-نتائج البحث تعطي بيانات الفيديو وروابط التشغيل. ولتحميل رابط TikTok باستخدام API نيزوكو:
-
-```js
-const download = await tiktok.downloadTikTok('https://vm.tiktok.com/ZSpKDtT9b/');
-
-console.log(download.title);
-console.log(download.author);
-console.log(download.qualities.hd); // HD
-console.log(download.qualities.sd); // SD
-console.log(download.selected_download); // الرابط الافتراضي
-```
-
-اختيار جودة محددة:
-
-```js
-const hd = await tiktok.downloadTikTok(video.link, { quality: 'hd' });
-const sd = await tiktok.downloadTikTok(video.link, { quality: 'sd' });
-```
-
-الدالة تستخدم افتراضياً:
-
-`https://api.nezuko-wa.web.id/api/download/tiktok-api`
-
-ويمكن تغييرها إذا احتجت API أخرى عبر `downloadBaseUrl`.
-
-## الصفحات التالية
-
-```js
-const nextPage = await tiktok.searchVideos('dance', {
-  country: 'us',
-  cursor: page.next_cursor
-});
-```
-
-أو استخدم async iterator:
-
-```js
-for await (const video of tiktok.iterateVideos('dance', { country: 'us', maxPages: 3 })) {
-  console.log(video.link);
+    if (firstPage.hasMore) {
+      const nextPage = await client.searchVideos('football', {
+        count: 10,
+        offset: firstPage.cursor,
+        searchId: firstPage.searchId
+      });
+      console.log(nextPage.videos.length);
+    }
+  } finally {
+    await client.close();
+  }
 }
+
+main().catch(console.error);
 ```
 
-## الدوال المتاحة
+## جلب فيديو بمعرّفه
 
-- `health()`
-- `searchVideos(query, options)` — `sort`: `relevance` أو `likes`، و`published`: `day`, `week`, `month`, `3months`, `6months`
-- `searchUsers(query, options)`
-- `searchTop(query, options)`
-- `searchLive(query, options)`
-- `suggestions(query, options)`
-- `videoDetails(video, options)`
-- `videoMedia(video, options)`
-- `downloadTikTok(url, options)` — يرجع `title`, `author`, `qualities.hd`, `qualities.sd`, `download`, و`selected_download`
-- `iterateVideos(query, options)`
+```js
+const { getVideo } = require('nezuko-tiktok-search');
 
-كل الطلبات ترجع JSON كما يرجعه خادم المصدر. أخطاء HTTP ترمي `TikTokHttpError`، وأخطاء المدخلات ترمي `TikTokValidationError`.
+async function main() {
+  const video = await getVideo('7698296086431059207');
+  console.log(video.url, video.description);
+}
 
-## إعدادات البيئة
+main().catch(console.error);
+```
 
-يمكنك تمرير `TIKTOK_API_URL` بدلاً من `baseUrl`:
+## شكل النتيجة
+
+`searchVideos()` يعيد كائناً يحتوي على `query` و`videos` و`cursor` و`hasMore` و`searchId`. كل عنصر فيديو يتضمن، عند إتاحتها من TikTok:
+
+- `id` و`title` و`description` و`url`.
+- `author` مع `username` و`name` و`verified` و`url` و`avatarUrl`.
+- `views` و`likes` و`comments` و`shares` و`durationSeconds`.
+- `thumbnail` و`playUrl` و`downloadUrl` و`createdAt` و`music`.
+
+قد تكون بعض القيم `null` أو غير متاحة بحسب استجابة TikTok. يمكن طلب كائن المصدر الخام عبر `{ includeRaw: true }`، مثلاً `searchVideos('cats', { includeRaw: true })`.
+
+## الإعدادات
+
+تُقرأ إعدادات الخدمة من متغيرات البيئة. مثال:
 
 ```bash
-TIKTOK_API_URL=http://127.0.0.1:8000 node app.js
+TIKTOK_REGION=US TIKTOK_MIN_REQUEST_INTERVAL_MS=1000 node app.js
 ```
+
+المتغيرات المدعومة من الخدمة المضمّنة تشمل `TIKTOK_REGION` و`TIKTOK_PROXY_URL` و`TIKTOK_TIMEOUT_MS` و`TIKTOK_MIN_REQUEST_INTERVAL_MS`. استخدم معدل طلبات معتدلاً، والتزم بشروط TikTok والقوانين المعمول بها.
+
+## الروابط والاعتمادية
+
+`url` هو رابط صفحة الفيديو في TikTok، وهو الخيار الأنسب للمشاركة. أما `playUrl` و`downloadUrl` فهما روابط CDN مباشرة قد تكون مؤقتة أو تُرفض، ولا تضمن المكتبة صلاحيتها للتنزيل أو التشغيل لاحقاً. نتائج البحث تعتمد على ما تسمح به TikTok في وقت الطلب، وقد تتأثر بتغييرات الموقع أو القيود الجغرافية أو الشبكة.
+
+لا تتضمن المكتبة حساب TikTok أو كلمة مرور أو ملفات cookies، ولا ينبغي استخدامها لتجاوز ضوابط الوصول أو حقوق أصحاب المحتوى.
 
 ## الاختبارات
 
 ```bash
-npm test                 # اختبارات محلية لا تحتاج TikTok
-npm run test:live        # اختبار اتصال حي؛ يحتاج خادم المصدر على 8000
+npm test
 ```
 
-## English summary
+## حقوق النشر والتراخيص
 
-`nezuko-tiktok` is an ESM Node.js client for the HTTP API exposed by the upstream Python scraper. It does not bypass TikTok protections or provide authentication; availability depends on TikTok and the server's network egress. The default API URL is `http://127.0.0.1:8000`.
-
-## الإسناد والترخيص
-
-هذه الحزمة MIT. خادم المصدر [omkarcloud/tiktok-scraper](https://github.com/omkarcloud/tiktok-scraper) مرخّص أيضاً MIT؛ راجع ملف `NOTICE` لمعلومات الإسناد. استخدم الخدمة بما يتوافق مع شروط TikTok والقوانين المحلية.
+حقوق أجزاء الربط والتغليف والتوثيق الأصلية في هذا المشروع: **© 2026 Monte وBMG Inc.** يوضح ملف [`COPYRIGHT.md`](./COPYRIGHT.md) نطاق هذا الإسناد. تبقى أجزاء المصدر المضمّنة من مشروع [`sangzun-han/Tiktok-Api`](https://github.com/sangzun-han/Tiktok-Api) منسوبة إلى أصحابها وخاضعة لإشعار MIT المحفوظ في `LICENSE` و`internal/LICENSE.upstream` و`THIRD-PARTY-NOTICES.md`. لا يمنح هذا الإسناد أي حقوق في TikTok أو ByteDance أو المحتوى الذي ينشئه المستخدمون.
