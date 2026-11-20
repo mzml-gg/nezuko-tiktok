@@ -39,6 +39,47 @@ for (const video of page.videos) {
 }
 ```
 
+ويمكن استدعاء الدوال مباشرة بدون إنشاء عميل:
+
+```js
+import { searchVideos, downloadTikTok } from 'nezuko-tiktok';
+
+const results = await searchVideos('dance', {
+  clientOptions: { baseUrl: 'http://127.0.0.1:8000' },
+  country: 'us'
+});
+
+const file = await downloadTikTok(results.videos[0].link, { quality: 'hd' });
+console.log(file.selected_download);
+```
+
+## تحميل فيديو عبر API نيزوكو
+
+نتائج البحث تعطي بيانات الفيديو وروابط التشغيل. ولتحميل رابط TikTok باستخدام API نيزوكو:
+
+```js
+const download = await tiktok.downloadTikTok('https://vm.tiktok.com/ZSpKDtT9b/');
+
+console.log(download.title);
+console.log(download.author);
+console.log(download.qualities.hd); // HD
+console.log(download.qualities.sd); // SD
+console.log(download.selected_download); // الرابط الافتراضي
+```
+
+اختيار جودة محددة:
+
+```js
+const hd = await tiktok.downloadTikTok(video.link, { quality: 'hd' });
+const sd = await tiktok.downloadTikTok(video.link, { quality: 'sd' });
+```
+
+الدالة تستخدم افتراضياً:
+
+`https://api.nezuko-wa.web.id/api/download/tiktok-api`
+
+ويمكن تغييرها إذا احتجت API أخرى عبر `downloadBaseUrl`.
+
 ## الصفحات التالية
 
 ```js
@@ -66,6 +107,7 @@ for await (const video of tiktok.iterateVideos('dance', { country: 'us', maxPage
 - `suggestions(query, options)`
 - `videoDetails(video, options)`
 - `videoMedia(video, options)`
+- `downloadTikTok(url, options)` — يرجع `title`, `author`, `qualities.hd`, `qualities.sd`, `download`, و`selected_download`
 - `iterateVideos(query, options)`
 
 كل الطلبات ترجع JSON كما يرجعه خادم المصدر. أخطاء HTTP ترمي `TikTokHttpError`، وأخطاء المدخلات ترمي `TikTokValidationError`.
