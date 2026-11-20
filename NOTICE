@@ -1,0 +1,5 @@
+nezuko-tiktok is a Node.js client for the HTTP API exposed by:
+https://github.com/omkarcloud/tiktok-scraper
+
+The upstream project is Copyright (c) 2026 Chetan Jain and is licensed under the MIT License.
+This package does not include the upstream Python source; it communicates with a running compatible API server.
